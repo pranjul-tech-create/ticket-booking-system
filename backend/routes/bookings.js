@@ -11,6 +11,12 @@ router.post("/", async (req, res) => {
   try {
     const { user_id, show_id, seats } = req.body;
 
+    console.log("Booking request:", {
+      user_id,
+      show_id,
+      seats,
+    });
+
     // Check required fields
     if (!user_id || !show_id || !seats) {
       return res.status(400).json({
@@ -18,7 +24,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check whether the user exists
+    // Check whether user exists
     const userCheck = await pool.query(
       `SELECT "user id"
        FROM users
@@ -32,7 +38,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check whether the show exists
+    // Check whether show exists
     const showCheck = await pool.query(
       `SELECT show_id
        FROM shows
@@ -64,13 +70,15 @@ router.post("/", async (req, res) => {
     // Create booking
     const result = await pool.query(
       `INSERT INTO bookings
-       (user_id, show_id, seats, booking_date)
-       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-       RETURNING *`,
+       (user_id, show_id, seats)
+       VALUES ($1, $2, $3)
+       RETURNING booking_id, user_id, show_id, seats`,
       [user_id, show_id, seats]
     );
 
-    res.status(201).json({
+    console.log("Booking created:", result.rows[0]);
+
+    return res.status(201).json({
       message: "Booking successful!",
       booking: result.rows[0],
     });
@@ -78,8 +86,8 @@ router.post("/", async (req, res) => {
   } catch (error) {
     console.error("Booking error:", error);
 
-    res.status(500).json({
-      error: "Failed to create booking",
+    return res.status(500).json({
+      error: error.message,
     });
   }
 });
@@ -101,13 +109,54 @@ router.get("/show/:show_id", async (req, res) => {
       [show_id]
     );
 
-    res.json(result.rows);
+    return res.json(result.rows);
 
   } catch (error) {
     console.error("Error fetching booked seats:", error);
 
-    res.status(500).json({
-      error: "Failed to fetch booked seats",
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+
+// ==========================================
+// GET BOOKINGS FOR A USER
+// GET /api/bookings/user/:user_id
+// ==========================================
+router.get("/user/:user_id", async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+          b.booking_id,
+          b.user_id,
+          b.show_id,
+          b.seats,
+          s.movie_id,
+          s.show_date,
+          s.show_time,
+          m.title,
+          m.duration
+       FROM bookings b
+       JOIN shows s
+         ON b.show_id = s.show_id
+       JOIN movies m
+         ON s.movie_id = m.movie_id
+       WHERE b.user_id = $1
+       ORDER BY b.booking_id DESC`,
+      [user_id]
+    );
+
+    return res.json(result.rows);
+
+  } catch (error) {
+    console.error("Error fetching user bookings:", error);
+
+    return res.status(500).json({
+      error: error.message,
     });
   }
 });
@@ -125,59 +174,16 @@ router.get("/", async (req, res) => {
        ORDER BY booking_id DESC`
     );
 
-    res.json(result.rows);
+    return res.json(result.rows);
 
   } catch (error) {
-    console.error("Error fetching bookings:", error);
+    console.error("Error fetching all bookings:", error);
 
-    res.status(500).json({
-      error: "Failed to fetch bookings",
+    return res.status(500).json({
+      error: error.message,
     });
   }
 });
 
 
-// ==========================================
-// EXPORT ROUTER
-// ==========================================
-// ==========================================
-// GET BOOKINGS FOR A USER
-// GET /api/bookings/user/:user_id
-// ==========================================
-router.get("/user/:user_id", async (req, res) => {
-  try {
-    const { user_id } = req.params;
-
-    const result = await pool.query(
-      `SELECT
-          b.booking_id,
-          b.user_id,
-          b.show_id,
-          b.seats,
-          b.booking_date,
-          s.movie_id,
-          s.show_date,
-          s.show_time,
-          m.title,
-          m.duration
-       FROM bookings b
-       JOIN shows s
-         ON b.show_id = s.show_id
-       JOIN movies m
-         ON s.movie_id = m.movie_id
-       WHERE b.user_id = $1
-       ORDER BY b.booking_date DESC`,
-      [user_id]
-    );
-
-    res.json(result.rows);
-
-  } catch (error) {
-    console.error("Error fetching user bookings:", error);
-
-    res.status(500).json({
-      error: "Failed to fetch user bookings",
-    });
-  }
-});
 module.exports = router;
