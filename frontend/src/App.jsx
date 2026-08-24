@@ -1,38 +1,21 @@
-```jsx
 import { useEffect, useState } from "react";
 import "./App.css";
 
-// ==========================================
-// DEPLOYED BACKEND URL
-// ==========================================
 const API_URL =
   "https://ticket-booking-system-backend-i5s9.onrender.com";
 
 function App() {
-  // ==========================================
-  // MOVIES & SHOWS
-  // ==========================================
   const [movies, setMovies] = useState([]);
   const [shows, setShows] = useState([]);
 
-  // ==========================================
-  // BOOKING
-  // ==========================================
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [selectedShow, setSelectedShow] = useState(null);
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [bookedSeats, setBookedSeats] = useState([]);
 
   const [bookingMessage, setBookingMessage] = useState("");
-
-  // ==========================================
-  // LOADING
-  // ==========================================
   const [loading, setLoading] = useState(true);
 
-  // ==========================================
-  // AUTHENTICATION
-  // ==========================================
   const [user, setUser] = useState(null);
 
   const [showLogin, setShowLogin] = useState(false);
@@ -51,15 +34,26 @@ function App() {
     password: "",
   });
 
-  // ==========================================
-  // MY BOOKINGS
-  // ==========================================
   const [myBookings, setMyBookings] = useState([]);
   const [showMyBookings, setShowMyBookings] = useState(false);
 
-  // ==========================================
+  // ------------------------------------------
+  // GET USER ID
+  // ------------------------------------------
+  const getUserId = (currentUser) => {
+    if (!currentUser) return null;
+
+    return (
+      currentUser["user id"] ||
+      currentUser.user_id ||
+      currentUser.userId ||
+      currentUser.id
+    );
+  };
+
+  // ------------------------------------------
   // LOAD SAVED USER
-  // ==========================================
+  // ------------------------------------------
   useEffect(() => {
     const savedUser = localStorage.getItem("ticketBookingUser");
 
@@ -67,14 +61,15 @@ function App() {
       try {
         setUser(JSON.parse(savedUser));
       } catch (error) {
+        console.error("Invalid saved user:", error);
         localStorage.removeItem("ticketBookingUser");
       }
     }
   }, []);
 
-  // ==========================================
-  // FETCH MOVIES & SHOWS
-  // ==========================================
+  // ------------------------------------------
+  // FETCH MOVIES AND SHOWS
+  // ------------------------------------------
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -86,17 +81,26 @@ function App() {
           `${API_URL}/api/shows`
         );
 
-        if (!moviesResponse.ok || !showsResponse.ok) {
-          throw new Error("Failed to fetch movies or shows");
+        if (!moviesResponse.ok) {
+          throw new Error("Movies API failed");
+        }
+
+        if (!showsResponse.ok) {
+          throw new Error("Shows API failed");
         }
 
         const moviesData = await moviesResponse.json();
         const showsData = await showsResponse.json();
 
-        setMovies(moviesData);
-        setShows(showsData);
+        setMovies(
+          Array.isArray(moviesData) ? moviesData : []
+        );
+
+        setShows(
+          Array.isArray(showsData) ? showsData : []
+        );
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Fetch error:", error);
       } finally {
         setLoading(false);
       }
@@ -105,9 +109,9 @@ function App() {
     fetchData();
   }, []);
 
-  // ==========================================
+  // ------------------------------------------
   // REGISTER
-  // ==========================================
+  // ------------------------------------------
   const handleRegister = async (e) => {
     e.preventDefault();
 
@@ -135,7 +139,7 @@ function App() {
       }
 
       setAuthMessage(
-        "Registration successful! You can now login."
+        "Registration successful! Please login."
       );
 
       setRegisterForm({
@@ -158,9 +162,9 @@ function App() {
     }
   };
 
-  // ==========================================
+  // ------------------------------------------
   // LOGIN
-  // ==========================================
+  // ------------------------------------------
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -182,8 +186,13 @@ function App() {
 
       if (!response.ok || data.error) {
         setAuthMessage(
-          data.error || "Invalid email or password."
+          data.error || "Login failed."
         );
+        return;
+      }
+
+      if (!data.user) {
+        setAuthMessage("Login response is invalid.");
         return;
       }
 
@@ -210,40 +219,50 @@ function App() {
     }
   };
 
-  // ==========================================
+  // ------------------------------------------
   // LOGOUT
-  // ==========================================
+  // ------------------------------------------
   const handleLogout = () => {
     localStorage.removeItem("ticketBookingUser");
 
     setUser(null);
     setMyBookings([]);
     setShowMyBookings(false);
-
     setBookingMessage("");
   };
 
-  // ==========================================
+  // ------------------------------------------
   // LOAD BOOKED SEATS
-  // ==========================================
+  // ------------------------------------------
   const loadBookedSeats = async (showId) => {
+    if (!showId) {
+      setBookedSeats([]);
+      return;
+    }
+
     try {
       const response = await fetch(
         `${API_URL}/api/bookings/show/${showId}`
       );
 
+      if (!response.ok) {
+        throw new Error("Unable to load booked seats");
+      }
+
       const data = await response.json();
 
       if (Array.isArray(data)) {
-        setBookedSeats(
-          data.map((item) => Number(item.seats))
-        );
+        const seats = data
+          .map((item) => Number(item.seats))
+          .filter((seat) => !Number.isNaN(seat));
+
+        setBookedSeats(seats);
       } else {
         setBookedSeats([]);
       }
     } catch (error) {
       console.error(
-        "Error loading booked seats:",
+        "Booked seats error:",
         error
       );
 
@@ -251,9 +270,9 @@ function App() {
     }
   };
 
-  // ==========================================
+  // ------------------------------------------
   // BOOK NOW
-  // ==========================================
+  // ------------------------------------------
   const handleBookNow = async (movie) => {
     const movieShow = shows.find(
       (show) =>
@@ -268,12 +287,14 @@ function App() {
 
     if (movieShow) {
       await loadBookedSeats(movieShow.show_id);
+    } else {
+      setBookedSeats([]);
     }
   };
 
-  // ==========================================
+  // ------------------------------------------
   // CONFIRM BOOKING
-  // ==========================================
+  // ------------------------------------------
   const handleBooking = async () => {
     if (!user) {
       setBookingMessage(
@@ -307,6 +328,15 @@ function App() {
       return;
     }
 
+    const userId = getUserId(user);
+
+    if (!userId) {
+      setBookingMessage(
+        "User ID was not found. Please login again."
+      );
+      return;
+    }
+
     try {
       const response = await fetch(
         `${API_URL}/api/bookings`,
@@ -315,16 +345,10 @@ function App() {
           headers: {
             "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
-            user_id:
-              user["user id"] ||
-              user.user_id ||
-              user.id,
-
+            user_id: userId,
             show_id: selectedShow.show_id,
-
-            seats: selectedSeat,
+            seats: Number(selectedSeat),
           }),
         }
       );
@@ -339,8 +363,13 @@ function App() {
         return;
       }
 
+      const bookingId =
+        data.booking?.booking_id ||
+        data.booking_id ||
+        "Success";
+
       setBookingMessage(
-        `🎉 Booking successful! Your Booking ID is ${data.booking.booking_id}`
+        `🎉 Booking successful! Booking ID: ${bookingId}`
       );
 
       await loadBookedSeats(
@@ -355,24 +384,29 @@ function App() {
       );
 
       setBookingMessage(
-        "Unable to connect to the server. Please try again."
+        "Unable to connect to the server."
       );
     }
   };
 
-  // ==========================================
-  // GET MY BOOKINGS
-  // ==========================================
+  // ------------------------------------------
+  // MY BOOKINGS
+  // ------------------------------------------
   const loadMyBookings = async () => {
     if (!user) {
       setShowLogin(true);
       return;
     }
 
-    const userId =
-      user["user id"] ||
-      user.user_id ||
-      user.id;
+    const userId = getUserId(user);
+
+    if (!userId) {
+      setAuthMessage(
+        "User ID not found. Please login again."
+      );
+      setShowLogin(true);
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -386,7 +420,10 @@ function App() {
         return;
       }
 
-      setMyBookings(data);
+      setMyBookings(
+        Array.isArray(data) ? data : []
+      );
+
       setShowMyBookings(true);
 
       setTimeout(() => {
@@ -398,15 +435,37 @@ function App() {
       }, 100);
     } catch (error) {
       console.error(
-        "Error loading bookings:",
+        "My bookings error:",
         error
       );
     }
   };
 
-  // ==========================================
-  // LOADING SCREEN
-  // ==========================================
+  // ------------------------------------------
+  // CLOSE BOOKING
+  // ------------------------------------------
+  const closeBooking = () => {
+    setSelectedMovie(null);
+    setSelectedShow(null);
+    setSelectedSeat(null);
+    setBookedSeats([]);
+    setBookingMessage("");
+  };
+
+  // ------------------------------------------
+  // SCROLL TO MOVIES
+  // ------------------------------------------
+  const scrollToMovies = () => {
+    document
+      .getElementById("movies")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  };
+
+  // ------------------------------------------
+  // LOADING
+  // ------------------------------------------
   if (loading) {
     return (
       <div className="app">
@@ -420,39 +479,18 @@ function App() {
   return (
     <div className="app">
 
-      {/* =====================================
-          NAVBAR
-      ====================================== */}
-
+      {/* NAVBAR */}
       <nav className="navbar">
-
         <div className="logo">
           🎬 Ticket Booking
         </div>
 
         <div className="nav-links">
-
-          <span
-            onClick={() =>
-              document
-                .getElementById("movies")
-                ?.scrollIntoView({
-                  behavior: "smooth",
-                })
-            }
-          >
+          <span onClick={scrollToMovies}>
             Home
           </span>
 
-          <span
-            onClick={() =>
-              document
-                .getElementById("movies")
-                ?.scrollIntoView({
-                  behavior: "smooth",
-                })
-            }
-          >
+          <span onClick={scrollToMovies}>
             Movies
           </span>
 
@@ -479,6 +517,7 @@ function App() {
                 className="login-button"
                 onClick={() => {
                   setShowLogin(true);
+                  setShowRegister(false);
                   setAuthMessage("");
                 }}
               >
@@ -489,6 +528,7 @@ function App() {
                 className="register-button"
                 onClick={() => {
                   setShowRegister(true);
+                  setShowLogin(false);
                   setAuthMessage("");
                 }}
               >
@@ -496,19 +536,12 @@ function App() {
               </button>
             </>
           )}
-
         </div>
       </nav>
 
-
-      {/* =====================================
-          HERO
-      ====================================== */}
-
+      {/* HERO */}
       <section className="hero">
-
         <div className="hero-content">
-
           <p className="hero-small-title">
             WELCOME TO TICKET BOOKING
           </p>
@@ -527,50 +560,32 @@ function App() {
 
           <button
             className="hero-button"
-            onClick={() =>
-              document
-                .getElementById("movies")
-                ?.scrollIntoView({
-                  behavior: "smooth",
-                })
-            }
+            onClick={scrollToMovies}
           >
             Explore Movies
           </button>
-
         </div>
 
         <div className="hero-icon">
           🎬
         </div>
-
       </section>
 
-
-      {/* =====================================
-          MOVIES
-      ====================================== */}
-
+      {/* MOVIES */}
       <main
         className="container"
         id="movies"
       >
-
         <div className="section-heading">
-
           <p>NOW SHOWING</p>
 
           <h2>
             Choose Your Movie
           </h2>
-
         </div>
 
-
         {movies.length === 0 ? (
-
           <div className="empty-message">
-
             <h3>
               No movies available
             </h3>
@@ -578,35 +593,26 @@ function App() {
             <p>
               Please add a movie to the database.
             </p>
-
           </div>
-
         ) : (
-
           <div className="movie-grid">
-
             {movies.map((movie) => {
-
-              const movieShow =
-                shows.find(
-                  (show) =>
-                    Number(show.movie_id) ===
-                    Number(movie.movie_id)
-                );
+              const movieShow = shows.find(
+                (show) =>
+                  Number(show.movie_id) ===
+                  Number(movie.movie_id)
+              );
 
               return (
-
                 <div
                   className="movie-card"
                   key={movie.movie_id}
                 >
-
                   <div className="movie-poster">
                     🎬
                   </div>
 
                   <div className="movie-info">
-
                     <span className="movie-badge">
                       NOW SHOWING
                     </span>
@@ -620,19 +626,17 @@ function App() {
                     </p>
 
                     {movieShow && (
-
                       <div className="show-info">
-
                         <p>
-                          📅 {movieShow.show_date}
+                          📅{" "}
+                          {movieShow.show_date}
                         </p>
 
                         <p>
-                          🕐 {movieShow.show_time}
+                          🕐{" "}
+                          {movieShow.show_time}
                         </p>
-
                       </div>
-
                     )}
 
                     <button
@@ -643,29 +647,17 @@ function App() {
                     >
                       Book Now →
                     </button>
-
                   </div>
-
                 </div>
-
               );
             })}
-
           </div>
-
         )}
 
-
-        {/* =====================================
-            BOOKING SECTION
-        ====================================== */}
-
+        {/* BOOKING SECTION */}
         {selectedMovie && (
-
           <section className="booking-section">
-
             <div className="booking-header">
-
               <p>
                 BOOK YOUR TICKET
               </p>
@@ -675,28 +667,21 @@ function App() {
               </h2>
 
               {selectedShow && (
-
                 <div className="selected-show">
-
                   <span>
-                    📅 {selectedShow.show_date}
+                    📅{" "}
+                    {selectedShow.show_date}
                   </span>
 
                   <span>
-                    🕐 {selectedShow.show_time}
+                    🕐{" "}
+                    {selectedShow.show_time}
                   </span>
-
                 </div>
-
               )}
-
             </div>
 
-
-            {/* SEATS */}
-
             <div className="seat-container">
-
               <h3>
                 Select Your Seat
               </h3>
@@ -706,55 +691,51 @@ function App() {
               </div>
 
               <div className="seat-grid">
-
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(
                   (seat) => {
-
                     const isBooked =
-                      bookedSeats.includes(seat);
+                      bookedSeats.includes(
+                        seat
+                      );
 
                     const isSelected =
                       selectedSeat === seat;
 
-                    return (
+                    let seatClass = "seat";
 
+                    if (isBooked) {
+                      seatClass =
+                        "seat booked";
+                    } else if (isSelected) {
+                      seatClass =
+                        "seat selected";
+                    }
+
+                    return (
                       <button
                         key={seat}
+                        type="button"
                         disabled={isBooked}
-                        className={
-                          isBooked
-                            ? "seat booked"
-                            : isSelected
-                            ? "seat selected"
-                            : "seat"
-                        }
+                        className={seatClass}
                         onClick={() => {
-
                           if (!isBooked) {
-
                             setSelectedSeat(
                               seat
                             );
-
-                            setBookingMessage("");
-
+                            setBookingMessage(
+                              ""
+                            );
                           }
-
                         }}
                       >
                         {seat}
                       </button>
-
                     );
-
                   }
                 )}
-
               </div>
 
-
               <div className="seat-legend">
-
                 <span>
                   <span className="legend-box available"></span>
                   Available
@@ -769,12 +750,9 @@ function App() {
                   <span className="legend-box booked-box"></span>
                   Booked
                 </span>
-
               </div>
 
-
               {selectedSeat && (
-
                 <p className="selected-seat">
                   Selected Seat:
                   <strong>
@@ -782,68 +760,40 @@ function App() {
                     {selectedSeat}
                   </strong>
                 </p>
-
               )}
-
             </div>
 
-
-            {/* CONFIRM BOOKING */}
-
             <button
+              type="button"
               className="confirm-button"
               onClick={handleBooking}
             >
               Confirm Booking 🎟️
             </button>
 
-
-            {/* MESSAGE */}
-
             {bookingMessage && (
-
               <div className="booking-message">
                 {bookingMessage}
               </div>
-
             )}
 
-
-            {/* CLOSE */}
-
             <button
+              type="button"
               className="close-button"
-              onClick={() => {
-
-                setSelectedMovie(null);
-                setSelectedShow(null);
-                setSelectedSeat(null);
-                setBookedSeats([]);
-                setBookingMessage("");
-
-              }}
+              onClick={closeBooking}
             >
               Close
             </button>
-
           </section>
-
         )}
 
-
-        {/* =====================================
-            MY BOOKINGS
-        ====================================== */}
-
+        {/* MY BOOKINGS */}
         {showMyBookings && (
-
           <section
             className="my-bookings-section"
             id="my-bookings"
           >
-
             <div className="section-heading">
-
               <p>
                 YOUR BOOKINGS
               </p>
@@ -851,14 +801,10 @@ function App() {
               <h2>
                 My Bookings
               </h2>
-
             </div>
 
-
             {myBookings.length === 0 ? (
-
               <div className="empty-message">
-
                 <h3>
                   No bookings yet 🎟️
                 </h3>
@@ -867,84 +813,67 @@ function App() {
                   Book your favourite movie
                   to see it here.
                 </p>
-
               </div>
-
             ) : (
-
               <div className="booking-list">
-
                 {myBookings.map(
                   (booking) => (
-
                     <div
                       className="booking-card"
-                      key={booking.booking_id}
+                      key={
+                        booking.booking_id
+                      }
                     >
-
                       <div className="booking-card-icon">
                         🎬
                       </div>
 
                       <div>
-
                         <h3>
                           {booking.title}
                         </h3>
 
                         <p>
-                          🎟️ Booking ID:
-                          {" "}
-                          {booking.booking_id}
+                          🎟️ Booking ID:{" "}
+                          {
+                            booking.booking_id
+                          }
                         </p>
 
                         <p>
-                          💺 Seat:
-                          {" "}
+                          💺 Seat:{" "}
                           {booking.seats}
                         </p>
 
                         <p>
-                          📅 Show Date:
-                          {" "}
-                          {booking.show_date}
+                          📅 Show Date:{" "}
+                          {
+                            booking.show_date
+                          }
                         </p>
 
                         <p>
-                          🕐 Show Time:
-                          {" "}
-                          {booking.show_time}
+                          🕐 Show Time:{" "}
+                          {
+                            booking.show_time
+                          }
                         </p>
-
                       </div>
-
                     </div>
-
                   )
                 )}
-
               </div>
-
             )}
-
           </section>
-
         )}
-
       </main>
 
-
-      {/* =====================================
-          LOGIN MODAL
-      ====================================== */}
-
+      {/* LOGIN MODAL */}
       {showLogin && (
-
         <div className="modal-overlay">
-
           <div className="auth-modal">
-
             <button
+              type="button"
               className="modal-close"
               onClick={() =>
                 setShowLogin(false)
@@ -962,7 +891,6 @@ function App() {
             </p>
 
             <form onSubmit={handleLogin}>
-
               <input
                 type="email"
                 placeholder="Email"
@@ -995,53 +923,38 @@ function App() {
               >
                 Login
               </button>
-
             </form>
 
             {authMessage && (
-
               <p className="auth-message">
                 {authMessage}
               </p>
-
             )}
 
             <p className="switch-auth">
-
               Don't have an account?
 
               <button
+                type="button"
                 onClick={() => {
-
                   setShowLogin(false);
                   setShowRegister(true);
                   setAuthMessage("");
-
                 }}
               >
                 Register
               </button>
-
             </p>
-
           </div>
-
         </div>
-
       )}
 
-
-      {/* =====================================
-          REGISTER MODAL
-      ====================================== */}
-
+      {/* REGISTER MODAL */}
       {showRegister && (
-
         <div className="modal-overlay">
-
           <div className="auth-modal">
-
             <button
+              type="button"
               className="modal-close"
               onClick={() =>
                 setShowRegister(false)
@@ -1059,7 +972,6 @@ function App() {
             </p>
 
             <form onSubmit={handleRegister}>
-
               <input
                 type="text"
                 placeholder="Full Name"
@@ -1105,48 +1017,34 @@ function App() {
               >
                 Create Account
               </button>
-
             </form>
 
             {authMessage && (
-
               <p className="auth-message">
                 {authMessage}
               </p>
-
             )}
 
             <p className="switch-auth">
-
               Already have an account?
 
               <button
+                type="button"
                 onClick={() => {
-
                   setShowRegister(false);
                   setShowLogin(true);
                   setAuthMessage("");
-
                 }}
               >
                 Login
               </button>
-
             </p>
-
           </div>
-
         </div>
-
       )}
 
-
-      {/* =====================================
-          FOOTER
-      ====================================== */}
-
+      {/* FOOTER */}
       <footer className="footer">
-
         <p>
           © 2026 Ticket Booking System
         </p>
@@ -1155,12 +1053,9 @@ function App() {
           Built with React, Node.js,
           Express & PostgreSQL
         </p>
-
       </footer>
-
     </div>
   );
 }
 
 export default App;
-```
