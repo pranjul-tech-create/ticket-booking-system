@@ -8,7 +8,13 @@ const app = express();
 // MIDDLEWARE
 // ==========================================
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 
@@ -44,11 +50,36 @@ app.get("/", (req, res) => {
 
 
 // ==========================================
+// HEALTH CHECK
+// ==========================================
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "OK",
+    message: "Ticket Booking Server is healthy",
+  });
+});
+
+
+// ==========================================
+// ERROR HANDLER
+// ==========================================
+
+app.use((err, req, res, next) => {
+  console.error("Server Error:", err);
+
+  res.status(500).json({
+    error: "Internal server error",
+  });
+});
+
+
+// ==========================================
 // START SERVER
 // ==========================================
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
